@@ -30,11 +30,11 @@
  * ────────────────────────────────────────── */
 #define MOTOR_L_PWM_DDR     DDRD
 #define MOTOR_L_PWM_PORT    PORTD
-#define MOTOR_L_PWM_PIN     PD6        /* D6 – OC0A */
+#define MOTOR_L_PWM_PIN     PD5        /* D5 - OC0B */
 
 #define MOTOR_R_PWM_DDR     DDRD
 #define MOTOR_R_PWM_PORT    PORTD
-#define MOTOR_R_PWM_PIN     PD5        /* D5 – OC0B */
+#define MOTOR_R_PWM_PIN     PD6        /* D6 - OC0A */
 
 /* ──────────────────────────────────────────
  *  Motor Direction  (Port C)

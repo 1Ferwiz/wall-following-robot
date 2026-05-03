@@ -94,25 +94,28 @@ uint8_t UART_Write(const uint8_t *data, uint8_t length)
     return written;
 }
 
-uint8_t UART_SendString(const char *text)
+void UART_SendChar(char c)
 {
-    uint8_t written = 0;
+    (void)UART_WriteByte((uint8_t)c);
+}
 
-    while (text[written] != '\0')
+void UART_SendString(const char *text)
+{
+    uint8_t i = 0;
+
+    while (text[i] != '\0')
     {
-        if (!UART_WriteByte((uint8_t)text[written]))
+        if (!UART_WriteByte((uint8_t)text[i]))
         {
             break;
         }
-        written++;
+        i++;
     }
-
-    return written;
 }
 
-bool UART_Available(void)
+uint8_t UART_Available(void)
 {
-    return rx_head != rx_tail;
+    return (rx_head != rx_tail) ? 1u : 0u;
 }
 
 bool UART_ReadByte(uint8_t *byte)
@@ -125,6 +128,18 @@ bool UART_ReadByte(uint8_t *byte)
     *byte = rx_buffer[rx_tail];
     rx_tail = (uint8_t)((rx_tail + 1u) & UART_RX_MASK);
     return true;
+}
+
+char UART_ReadChar(void)
+{
+    uint8_t byte = 0;
+
+    if (!UART_ReadByte(&byte))
+    {
+        return '\0';
+    }
+
+    return (char)byte;
 }
 
 bool UART_RxOverflowed(void)

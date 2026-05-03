@@ -8,10 +8,12 @@ void UART_Init(void);
 
 bool UART_WriteByte(uint8_t byte);
 uint8_t UART_Write(const uint8_t *data, uint8_t length);
-uint8_t UART_SendString(const char *text);
+void UART_SendChar(char c);
+void UART_SendString(const char *text);
 
-bool UART_Available(void);
+uint8_t UART_Available(void);
 bool UART_ReadByte(uint8_t *byte);
+char UART_ReadChar(void);
 
 bool UART_RxOverflowed(void);
 bool UART_TxOverflowed(void);

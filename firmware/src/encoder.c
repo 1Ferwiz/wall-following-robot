@@ -1,5 +1,5 @@
 #include "../inc/encoder.h"
-#include <avr/interrupt.h>   // ISR(), sei()
+#include <avr/interrupt.h>   // ISR()
 #include <util/atomic.h>     // ATOMIC_BLOCK
 
 /* ──────────────────────────────────────────
@@ -41,9 +41,6 @@ void Encoder_Init(void) {
     /* 4. EIMSK — actually enable INT0 and INT1               */
     EIMSK |= (1 << INT0);
     EIMSK |= (1 << INT1);
-
-    /* 5. Enable global interrupts — nothing fires without this */
-    sei();
 }
 
 /* ──────────────────────────────────────────
