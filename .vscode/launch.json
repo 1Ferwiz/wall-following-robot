@@ -12,9 +12,9 @@
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug",
-            "executable": "C:/Users/Alfred/Desktop/wall-following-robot/.pio/build/uno/firmware.elf",
+            "executable": "C:/Users/Omart/Documents/GitHub/wall-following-robot/.pio/build/uno/firmware.elf",
             "projectEnvName": "uno",
-            "toolchainBinDir": "C:/Users/Alfred/.platformio/packages/toolchain-atmelavr/bin",
+            "toolchainBinDir": "C:/Users/Omart/.platformio/packages/toolchain-atmelavr/bin",
             "internalConsoleOptions": "openOnSessionStart",
             "preLaunchTask": {
                 "type": "PlatformIO",
@@ -25,18 +25,18 @@
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug (skip Pre-Debug)",
-            "executable": "C:/Users/Alfred/Desktop/wall-following-robot/.pio/build/uno/firmware.elf",
+            "executable": "C:/Users/Omart/Documents/GitHub/wall-following-robot/.pio/build/uno/firmware.elf",
             "projectEnvName": "uno",
-            "toolchainBinDir": "C:/Users/Alfred/.platformio/packages/toolchain-atmelavr/bin",
+            "toolchainBinDir": "C:/Users/Omart/.platformio/packages/toolchain-atmelavr/bin",
             "internalConsoleOptions": "openOnSessionStart"
         },
         {
             "type": "platformio-debug",
             "request": "launch",
             "name": "PIO Debug (without uploading)",
-            "executable": "C:/Users/Alfred/Desktop/wall-following-robot/.pio/build/uno/firmware.elf",
+            "executable": "C:/Users/Omart/Documents/GitHub/wall-following-robot/.pio/build/uno/firmware.elf",
             "projectEnvName": "uno",
-            "toolchainBinDir": "C:/Users/Alfred/.platformio/packages/toolchain-atmelavr/bin",
+            "toolchainBinDir": "C:/Users/Omart/.platformio/packages/toolchain-atmelavr/bin",
             "internalConsoleOptions": "openOnSessionStart",
             "loadMode": "manual"
         }
