@@ -1,4 +1,6 @@
 #include "fsm.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 typedef enum {
     IDLE,
@@ -22,33 +24,33 @@ void FSM_Update(void)
     switch (currentState)
     {
         case IDLE:
-            // wait for start
+            // TODO: wait for start signal
             break;
 
         case FOLLOW_WALL:
-            // read sensors
-            // apply PID
-            // check turns
+            // TODO:
+            // - read IR + ultrasonic
+            // - apply PID
+            // - detect turns
             break;
 
         case TURN_LEFT:
-            // rotate left
+            // TODO: encoder-based rotation
             break;
 
         case TURN_RIGHT:
-            // rotate right
             break;
 
         case AVOID:
-            // collision handling
+            // TODO: reverse + adjust
             break;
 
         case SEARCH:
-            // find wall again
+            // TODO: find wall again
             break;
 
         case FINISHED:
-            // send data via UART
+            // TODO: send Bluetooth data
             break;
     }
 }
