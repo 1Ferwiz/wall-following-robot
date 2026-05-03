@@ -18,7 +18,7 @@
 
 #define MOTOR_PWM_MAX     255
 #define MOTOR_PWM_MIN     0
-#define MOTOR_BASE_SPEED  160   /* tune experimentally */
+
 
 /* ── Lifecycle ─────────────────────────────────────────────────────────── */
 
