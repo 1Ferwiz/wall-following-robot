@@ -16,14 +16,10 @@ static volatile int32_t enc_right = 0;
  * ────────────────────────────────────────── */
 void Encoder_Init(void) {
 
-    /* 1. Set encoder pins as INPUT using ENC_DDR from pins.h */
-    ENC_DDR &= ~(1 << ENC_L_PIN);       // PD2 → INPUT  (Left,  INT0)
-    ENC_DDR &= ~(1 << ENC_R_PIN);       // PD3 → INPUT  (Right, INT1)
-
-    /* 2. Enable internal pull-ups — protects against floating
-     *    signal if a wire is loose during testing             */
-    ENC_PORT |= (1 << ENC_L_PIN);
-    ENC_PORT |= (1 << ENC_R_PIN);
+    ENC_A_DDR &= ~(1 << ENC_L_A_PIN);   // PD2 → INPUT  (Left,  INT0)
+    ENC_A_DDR &= ~(1 << ENC_R_A_PIN);   // PD3 → INPUT  (Right, INT1)
+    ENC_A_PORT |= (1 << ENC_L_A_PIN);
+    ENC_A_PORT |= (1 << ENC_R_A_PIN);
 
     /* 3. EICRA — choose what triggers each interrupt
      *
