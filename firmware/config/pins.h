@@ -62,6 +62,10 @@
  *  UART / HC-05  (hardware USART0)
  *  PD0 = RX,  PD1 = TX   (fixed by hardware)
  * ────────────────────────────────────────── */
+#define UART_DDR            DDRD
+#define UART_PORT           PORTD
+#define UART_RX_PIN         PD0
+#define UART_TX_PIN         PD1
 #define UART_BAUD           9600UL
 
 #endif /* PINS_H */
