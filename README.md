@@ -26,8 +26,8 @@ Follows walls, detects 90° turns (L/R), counts them, sends report via Bluetooth
 | IR Right | A1 | PC1 (ADC1) | Analog input |
 | Ultrasonic TRIG | D4 | PD4 | Digital output |
 | Ultrasonic ECHO | D8 | PB0 (ICP1) | Timer1 input capture |
-| Motor L PWM | D6 | PD6 (OC0A) | Timer0 |
-| Motor R PWM | D5 | PD5 (OC0B) | Timer0 |
+| Motor L PWM | D5 | PD5 (OC0B) | Timer0 — Left motor |
+| Motor R PWM | D6 | PD6 (OC0A) | Timer0 — Right motor |
 | Motor L IN1 | A2 | PC2 | Direction |
 | Motor L IN2 | A3 | PC3 | Direction |
 | Motor R IN1 | A4 | PC4 | Direction |
@@ -57,20 +57,23 @@ Follows walls, detects 90° turns (L/R), counts them, sends report via Bluetooth
 ## Timer Assignment (LOCKED)
 | Timer | Role |
 |---|---|
-| Timer0 | Motor PWM (OC0A=D6, OC0B=D5) |
+| Timer0 | Motor PWM (OC0B=D5 Left, OC0A=D6 Right) |
 | Timer1 | Ultrasonic echo capture (ICP1=D8) |
 | Timer2 | 1ms system tick (millis) |
 
 ---
 
 ## Project Structure
+```
 firmware/
-config/   → pins.h  ← READ THIS FIRST before writing any driver
-inc/      → one header per module
-src/      → one source file per module
+  config/   → pins.h  (pin + timer definitions — read before writing any driver)
+  inc/      → header files (one per module)
+  src/      → source files (one per module)
 docs/       → reports, FSM diagrams
 hardware/   → schematics
 test/       → per-module test sketches
+```
+
 ---
 
 ## Module Status
@@ -79,7 +82,7 @@ test/       → per-module test sketches
 | ADC | adc.c | Person 1 | ✅ Done |
 | IR Sensor | ir_sensor.c | Person 1 | ✅ Done |
 | Ultrasonic | ultrasonic.c | Person 1 | ✅ Done |
-| Motor | motor.c | Person 2 | 🔄 In progress |
+| Motor | motor.c | Person 2 | ✅ Done |
 | Encoder | encoder.c | Person 3 | 🔄 In progress |
 | UART | uart.c | Person 4 | 🔄 In progress |
 | FSM | fsm.c | All | ⏳ Waiting |
@@ -96,13 +99,32 @@ uint16_t IR_GetRightDistance(void);  // returns mm
 
 /* Ultrasonic */
 void     Ultrasonic_Init(void);
-void     Ultrasonic_Trigger(void);   // call every 20ms
-uint16_t Ultrasonic_GetDistance(void); // returns mm, non-blocking
+void     Ultrasonic_Trigger(void);      // call every 20ms
+uint16_t Ultrasonic_GetDistance(void);  // returns mm, non-blocking
 
-/* Motor */
-void Motor_Init(void);
-void Motor_SetSpeed(int left, int right); // -255 to +255
-void Motor_Stop(void);
+/* Motor — lifecycle */
+void motor_init(void);          // call once at startup
+void motor_enable(void);        // STBY HIGH — TB6612 active
+void motor_disable(void);       // STBY LOW  — TB6612 standby
+
+/* Motor — FSM motion commands */
+void motor_forward(uint8_t speed);      // both wheels forward
+void motor_backward(uint8_t speed);     // both wheels backward
+void motor_stop(void);                  // coast stop
+void motor_brake(void);                 // active brake — use before turns
+void motor_turn_left(uint8_t speed);    // in-place left  rotation
+void motor_turn_right(uint8_t speed);   // in-place right rotation
+
+/* Motor — PID wall-following */
+void motor_set_differential(int16_t left_pwm, int16_t right_pwm); // signed -255 to +255
+
+/* Motor — individual control */
+void motor_left_set(uint8_t speed, uint8_t dir);
+void motor_right_set(uint8_t speed, uint8_t dir);
+
+/* Motor — compatibility wrappers */
+void Motor_SetSpeed(int left, int right);   // → motor_set_differential()
+void Motor_Stop(void);                      // → motor_stop()
 
 /* Encoder */
 void    Encoder_Init(void);
@@ -143,7 +165,14 @@ char    UART_ReadChar(void);
 
 ---
 
-## Communication Format (HC-05 → PC)
-Turns: 5
-Sequence: L, R, R, L, L
-UART: 9600 baud, 8N1
+## Progress
+- [x] Project structure
+- [x] Pin assignment locked (`firmware/config/pins.h`)
+- [x] PlatformIO configured (`platformio.ini`)
+- [x] ADC driver
+- [x] IR sensor driver
+- [x] Ultrasonic driver
+- [x] Motor driver (`motor.c`, `motor.h`)
+- [ ] Encoder driver
+- [ ] UART driver
+- [ ] FSM implementation
