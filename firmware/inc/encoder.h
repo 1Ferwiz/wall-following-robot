@@ -3,8 +3,7 @@
 
 #include <stdint.h>
 #include <avr/io.h>
-#include "pins.h"
-
+#include "../config/pins.h"
 /* ──────────────────────────────────────────
  *  Motor & Wheel Constants
  *  GA25-370 — 12V 250RPM (confirmed from motor label)

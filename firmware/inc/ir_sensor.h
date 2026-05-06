@@ -2,7 +2,7 @@
 #define IR_SENSOR_H
 
 #include <stdint.h>
-#include "pins.h"
+#include "../config/pins.h"
 
 /* ══════════════════════════════════════════════
  *  ir_sensor.h — LM393 Digital IR Obstacle Sensor

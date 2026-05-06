@@ -2,58 +2,45 @@
 #define MOTOR_H
 
 #include <stdint.h>
-#include "pins.h"
+#include "../config/pins.h"
 
-/*
- * motor.h — TB6612FNG dual motor driver interface
- * Register-level AVR only, no Arduino libraries.
- * All pin definitions come from pins.h.
+/* ══════════════════════════════════════════════
+ *  motor.h — TB6612FNG motor driver
+ *  Team 11 Wall Following Robot
  *
- * Timer0 Fast PWM:
- *   OC0B → MOTOR_L_PWM_PIN (PD5) — Left  motor
- *   OC0A → MOTOR_R_PWM_PIN (PD6) — Right motor
- */
+ *  Controls 2× TT gear motors via TB6612FNG.
+ *  Speed range: -255 (full reverse) to +255 (full forward)
+ *  PWM frequency ≈ 7.8 kHz (Timer0, Fast PWM, /8 prescaler)
+ * ══════════════════════════════════════════════ */
 
-/* ── Constants ─────────────────────────────────────────────────────────── */
+/* Base speeds — tune during testing */
+#define MOTOR_BASE_SPEED        160    /* straight-line speed (0–255)   */
+#define MOTOR_TURN_SPEED        140    /* speed during a 90° turn       */
+#define MOTOR_SLOW_SPEED         80    /* approach speed near front wall */
 
-#define MOTOR_PWM_MAX     255
-#define MOTOR_PWM_MIN     0
+/* Time-based 90° turn duration in ms — MUST BE CALIBRATED ON REAL ROBOT
+ * Measure: run Motor_TurnLeft() and time until 90° reached, set here.  */
+#define MOTOR_TURN_DURATION_MS  550U
 
+/* ──────────────────────────────────────────
+ *  Agreed Team Interface
+ * ────────────────────────────────────────── */
 
-/* ── Lifecycle ─────────────────────────────────────────────────────────── */
+/* Call once in main() — configures Timer0 and all direction pins */
+void Motor_Init(void);
 
-/* Initialise GPIO and Timer0 for PWM, leave motors stopped */
-void motor_init(void);
+/* Set individual wheel speeds.
+ * left / right: -255 (full reverse) to +255 (full forward)
+ * 0 = brake (IN1=H, IN2=H)                                     */
+void Motor_SetSpeed(int left, int right);
 
-/* STBY pin control — call motor_enable() after motor_init() */
-void motor_enable(void);    /* STBY HIGH — TB6612 active  */
-void motor_disable(void);   /* STBY LOW  — TB6612 standby */
+/* Immediately brakes both motors (IN1=H, IN2=H, PWM=0) */
+void Motor_Stop(void);
 
-/* ── FSM motion commands ───────────────────────────────────────────────── */
-
-void motor_forward(uint8_t speed);      /* both wheels forward             */
-void motor_backward(uint8_t speed);     /* both wheels backward            */
-void motor_stop(void);                  /* coast stop  — PWM = 0          */
-void motor_brake(void);                 /* active brake — use before turns */
-void motor_turn_left(uint8_t speed);    /* in-place left  rotation         */
-void motor_turn_right(uint8_t speed);   /* in-place right rotation         */
-
-/* ── PID wall-following ────────────────────────────────────────────────── */
-
-/* Signed PWM, -255 to +255. Negative = reverse that wheel.
- * Called every 20 ms by the PID control loop. */
-void motor_set_differential(int16_t left_pwm, int16_t right_pwm);
-
-/* ── Individual motor control ──────────────────────────────────────────── */
-
-/* speed: 0-255, dir: 1 = forward, 0 = backward */
-void motor_left_set(uint8_t speed, uint8_t dir);
-void motor_right_set(uint8_t speed, uint8_t dir);
-
-/* ── README compatibility wrappers ────────────────────────────────────── */
-
-/* Thin wrappers so the agreed README interface is not broken */
-void Motor_SetSpeed(int left, int right);   /* → motor_set_differential() */
-void Motor_Stop(void);                      /* → motor_stop()             */
+/* Convenience wrappers used by FSM */
+void Motor_Forward(void);
+void Motor_TurnLeft(void);
+void Motor_TurnRight(void);
+void Motor_SlowDown(void);
 
 #endif /* MOTOR_H */

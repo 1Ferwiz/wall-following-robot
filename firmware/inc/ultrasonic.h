@@ -2,7 +2,7 @@
 #define ULTRASONIC_H
 
 #include <stdint.h>
-#include "pins.h"
+#include "../config/pins.h"
 
 /* ══════════════════════════════════════════════
  *  ultrasonic.h — 3× HC-SR04 driver
