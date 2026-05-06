@@ -1,124 +1,181 @@
-#include "ultrasonic.h"
-#include "pins.h"
+#include "../inc/ultrasonic.h"
 #include <avr/io.h>
-#include <avr/interrupt.h>
-#include <stdint.h>
+#include <util/delay.h>    /* _delay_us() — only used for 10µs TRIG pulse */
 
-/*
- * Strategy: Timer1 Input Capture
- * - Rising edge  → record start timestamp (ICR1)
- * - Falling edge → record stop timestamp, compute pulse width
- * - Distance = pulse_width_us * 0.1715  (sound speed at ~25°C)
+/* ══════════════════════════════════════════════
+ *  ultrasonic.c — 3× HC-SR04 driver
  *
- * Timer1: normal mode, prescaler 8 → tick = 0.5µs at 16MHz
- * Max echo ~23ms → 46000 ticks → fits in 16-bit (max 65535)
- */
+ *  Strategy: round-robin, one sensor per Update() call.
+ *  Each measurement blocks for at most ~3ms
+ *  (echo pulse length at 50cm, speed of sound 343m/s).
+ *  At 60cm wall: 2×600mm / 343000mm/s ≈ 3.5ms max block.
+ *  Safe to call from main loop scheduler every 20ms.
+ *
+ *  Timing method:
+ *    Front  → Timer1 counter (16-bit, 1µs ticks @ 16MHz prescale 16)
+ *    Left   → software loop counter (side sensors, ~8-bit precision OK)
+ *    Right  → software loop counter
+ *
+ *  Speed of sound constant:
+ *    343 m/s = 0.343 mm/µs
+ *    distance_mm = pulse_µs * 0.343 / 2
+ *               = pulse_µs * 343 / 2000
+ * ══════════════════════════════════════════════ */
 
-#define US_MAX_DIST_MM   2000u   /* ignore echoes beyond 2m */
-#define US_NO_READING       0u
+/* ──────────────────────────────────────────
+ *  Private state
+ * ────────────────────────────────────────── */
+static uint16_t dist_mm[3] = { US_NO_ECHO, US_NO_ECHO, US_NO_ECHO };
+static uint8_t  active_sensor = 0;   /* cycles 0 → 1 → 2 → 0 ... */
 
-/* shared with ISR — must be volatile */
-static volatile uint16_t us_start      = 0;
-static volatile uint16_t us_distance   = US_NO_READING;
-static volatile uint8_t  us_measuring  = 0;
+/* ──────────────────────────────────────────
+ *  Private helpers — one per sensor
+ *  Each triggers its sensor and measures echo
+ *  Returns distance in mm, or US_NO_ECHO
+ * ────────────────────────────────────────── */
 
-/*
- * Ultrasonic_Init
- */
-void Ultrasonic_Init(void)
-{
-    /* Trigger pin: output, start LOW */
-    US_TRIG_DDR  |=  (1 << US_TRIG_PIN);
-    US_TRIG_PORT &= ~(1 << US_TRIG_PIN);
+/* FRONT sensor — uses Timer1 counter for accurate timing */
+static uint16_t measure_front(void) {
 
-    /* Echo pin: input, no pull-up (driven by sensor) */
-    US_ECHO_DDR  &= ~(1 << US_ECHO_PIN);
-    US_ECHO_PORT &= ~(1 << US_ECHO_PIN);
+    /* --- TRIG: 10µs HIGH pulse --- */
+    US_FRONT_TRIG_PORT |=  (1 << US_FRONT_TRIG_PIN);
+    _delay_us(10);
+    US_FRONT_TRIG_PORT &= ~(1 << US_FRONT_TRIG_PIN);
 
-    /*
-     * Timer1: normal mode (WGM13:0 = 0000)
-     * Prescaler 8 → tick = 0.5µs
-     * Input Capture: rising edge first (ICES1 = 1)
-     * Input Capture Noise Canceler: enabled (ICNC1 = 1)
-     */
-    TCCR1A = 0x00;
-    TCCR1B = (1 << ICNC1)   /* noise canceler */
-           | (1 << ICES1)   /* rising edge first */
-           | (1 << CS11);   /* prescaler 8 */
-
-    /* Enable Input Capture interrupt */
-    TIMSK1 |= (1 << ICIE1);
-}
-
-/*
- * Ultrasonic_Trigger
- * Send 10µs HIGH pulse on TRIG pin.
- * Uses a short busy-wait — only 10µs, acceptable at trigger time.
- * Never call from ISR.
- */
-void Ultrasonic_Trigger(void)
-{
-    if (us_measuring) return; /* previous echo not done yet — skip */
-
-    us_measuring = 1;
-
-    US_TRIG_PORT |=  (1 << US_TRIG_PIN);  /* TRIG HIGH */
-
-    /* 10µs busy wait — 160 cycles at 16MHz */
-    __builtin_avr_delay_cycles(160);
-
-    US_TRIG_PORT &= ~(1 << US_TRIG_PIN);  /* TRIG LOW */
-}
-
-/*
- * Ultrasonic_GetDistance
- * Returns cached distance in mm from last completed measurement.
- */
-uint16_t Ultrasonic_GetDistance(void)
-{
-    uint16_t d;
-    /* atomic read — disable interrupts briefly for 2-byte variable */
-    uint8_t sreg = SREG;
-    __builtin_avr_cli();
-    d = us_distance;
-    SREG = sreg;
-    return d;
-}
-
-/*
- * ISR: Timer1 Input Capture
- * Fires on both rising and falling edges (we toggle ICES1 each time)
- */
-ISR(TIMER1_CAPT_vect)
-{
-    if (TCCR1B & (1 << ICES1))
-    {
-        /* Was rising edge — record start, switch to falling edge */
-        us_start  = ICR1;
-        TCCR1B   &= ~(1 << ICES1);  /* now capture falling edge */
+    /* --- Wait for echo to go HIGH (with timeout) ---
+     * Timeout ~ 600 iterations ≈ enough for 38ms no-echo signal  */
+    uint16_t timeout = 0;
+    while (!(PINB & (1 << US_FRONT_ECHO_PIN))) {
+        if (++timeout > 30000) return US_NO_ECHO;
     }
-    else
-    {
-        /* Was falling edge — compute pulse width */
-        uint16_t pulse_ticks = ICR1 - us_start;  /* wraps correctly */
 
-        /*
-         * Each tick = 0.5µs
-         * Distance = (pulse_us / 2) * speed_of_sound_mm_per_us
-         * speed ~ 0.343 mm/µs
-         * Distance_mm = pulse_ticks * 0.5 * 0.343 / 2
-         *             = pulse_ticks * 0.08575
-         *             ≈ pulse_ticks * 11 / 128   (integer approximation)
-         */
-        uint16_t dist = (uint16_t)((uint32_t)pulse_ticks * 11u / 128u);
-
-        if (dist > 0 && dist <= US_MAX_DIST_MM)
-        {
-            us_distance = dist;
-        }
-
-        /* Reset for next measurement */
-        TCCR1B  |= (1 << ICES1);  /* back to rising edge */
-        us_measuring = 0;
+    /* --- Reset Timer1 counter and count while echo is HIGH --- */
+    TCNT1 = 0;
+    while (PINB & (1 << US_FRONT_ECHO_PIN)) {
+        if (TCNT1 > 30000) return US_NO_ECHO;  /* ~30ms timeout */
     }
+
+    /* TCNT1 counts at F_CPU/8 = 2MHz → 0.5µs per tick
+     * pulse_µs = TCNT1 / 2
+     * dist_mm  = pulse_µs * 343 / 2000
+     *          = TCNT1 * 343 / 4000                              */
+    uint32_t ticks = TCNT1;
+    uint16_t mm = (uint16_t)((ticks * 343UL) / 4000UL);
+    return mm;
+}
+
+/* LEFT sensor — software loop timing (Port C) */
+static uint16_t measure_left(void) {
+
+    /* --- TRIG: 10µs HIGH pulse --- */
+    US_LEFT_TRIG_PORT |=  (1 << US_LEFT_TRIG_PIN);
+    _delay_us(10);
+    US_LEFT_TRIG_PORT &= ~(1 << US_LEFT_TRIG_PIN);
+
+    /* --- Wait for echo HIGH --- */
+    uint16_t timeout = 0;
+    while (!(US_LEFT_ECHO_PINREG & (1 << US_LEFT_ECHO_PIN))) {
+        if (++timeout > 30000) return US_NO_ECHO;
+    }
+
+    /* --- Count loop iterations while echo stays HIGH ---
+     * Each loop iteration ≈ 4 clock cycles @ 16MHz = 0.25µs
+     * pulse_µs ≈ count * 0.25
+     * dist_mm  = count * 0.25 * 343 / 2000
+     *          = count * 343 / 8000
+     * Note: less precise than Timer1 but ±5mm is fine for side walls */
+    uint16_t count = 0;
+    while (US_LEFT_ECHO_PINREG & (1 << US_LEFT_ECHO_PIN)) {
+        if (++count > 60000) return US_NO_ECHO;
+    }
+
+    uint16_t mm = (uint16_t)((uint32_t)count * 343UL / 8000UL);
+    return mm;
+}
+
+/* RIGHT sensor — software loop timing (Port D TRIG, Port B ECHO) */
+static uint16_t measure_right(void) {
+
+    /* --- TRIG: 10µs HIGH pulse --- */
+    US_RIGHT_TRIG_PORT |=  (1 << US_RIGHT_TRIG_PIN);
+    _delay_us(10);
+    US_RIGHT_TRIG_PORT &= ~(1 << US_RIGHT_TRIG_PIN);
+
+    /* --- Wait for echo HIGH --- */
+    uint16_t timeout = 0;
+    while (!(US_RIGHT_ECHO_PINREG & (1 << US_RIGHT_ECHO_PIN))) {
+        if (++timeout > 30000) return US_NO_ECHO;
+    }
+
+    /* --- Count while echo HIGH (same method as LEFT) --- */
+    uint16_t count = 0;
+    while (US_RIGHT_ECHO_PINREG & (1 << US_RIGHT_ECHO_PIN)) {
+        if (++count > 60000) return US_NO_ECHO;
+    }
+
+    uint16_t mm = (uint16_t)((uint32_t)count * 343UL / 8000UL);
+    return mm;
+}
+
+/* ──────────────────────────────────────────
+ *  Ultrasonic_Init
+ * ────────────────────────────────────────── */
+void Ultrasonic_Init(void) {
+
+    /* FRONT TRIG → OUTPUT, ECHO → INPUT */
+    US_FRONT_TRIG_DDR  |=  (1 << US_FRONT_TRIG_PIN);
+    US_FRONT_TRIG_PORT &= ~(1 << US_FRONT_TRIG_PIN);   /* start LOW  */
+    US_FRONT_ECHO_DDR  &= ~(1 << US_FRONT_ECHO_PIN);   /* input      */
+
+    /* LEFT TRIG → OUTPUT, ECHO → INPUT */
+    US_LEFT_TRIG_DDR   |=  (1 << US_LEFT_TRIG_PIN);
+    US_LEFT_TRIG_PORT  &= ~(1 << US_LEFT_TRIG_PIN);
+    US_LEFT_ECHO_DDR   &= ~(1 << US_LEFT_ECHO_PIN);
+
+    /* RIGHT TRIG → OUTPUT, ECHO → INPUT */
+    US_RIGHT_TRIG_DDR  |=  (1 << US_RIGHT_TRIG_PIN);
+    US_RIGHT_TRIG_PORT &= ~(1 << US_RIGHT_TRIG_PIN);
+    US_RIGHT_ECHO_DDR  &= ~(1 << US_RIGHT_ECHO_PIN);
+
+    /* Configure Timer1 for free-running mode, prescaler /8
+     * → 2 MHz clock → 0.5µs per tick, overflows after 32.7ms
+     * This is used only to time the FRONT echo pulse.           */
+    TCCR1A = 0x00;                  /* normal mode               */
+    TCCR1B = (1 << CS11);           /* prescaler /8              */
+    TCNT1  = 0;
+}
+
+/* ──────────────────────────────────────────
+ *  Ultrasonic_Update
+ *  Call every ~20ms from your main loop.
+ *  Measures ONE sensor per call and advances
+ *  to the next sensor for the next call.
+ * ────────────────────────────────────────── */
+void Ultrasonic_Update(void) {
+    switch (active_sensor) {
+        case US_FRONT:
+            dist_mm[US_FRONT] = measure_front();
+            break;
+        case US_LEFT:
+            dist_mm[US_LEFT]  = measure_left();
+            break;
+        case US_RIGHT:
+            dist_mm[US_RIGHT] = measure_right();
+            break;
+    }
+    /* Advance to next sensor (0→1→2→0) */
+    active_sensor = (active_sensor + 1) % 3;
+}
+
+/* ──────────────────────────────────────────
+ *  Ultrasonic_GetDistance
+ *  Returns last measured distance in mm.
+ *  Non-blocking — just reads stored result.
+ *
+ *  Usage:
+ *    uint16_t left  = Ultrasonic_GetDistance(US_LEFT);
+ *    uint16_t front = Ultrasonic_GetDistance(US_FRONT);
+ * ────────────────────────────────────────── */
+uint16_t Ultrasonic_GetDistance(US_Sensor_t sensor) {
+    return dist_mm[sensor];
 }
