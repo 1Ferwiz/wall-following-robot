@@ -1,7 +1,7 @@
 #include "../inc/fsm.h"
+#include "../inc/encoder.h"
 #include "../inc/motor.h"
 #include "../inc/ultrasonic.h"
-#include "../inc/ir_sensor.h"
 #include "../inc/uart.h"
 #include "../inc/systick.h"
 
@@ -36,8 +36,10 @@
  * ────────────────────────────────────────── */
 static FSM_State_t  state       = FSM_IDLE;
 static uint8_t      turn_count  = 0;
-static char         turn_seq[FSM_MAX_TURNS];  /* 'L' or 'R' per turn */
+static char         turn_seq[FSM_MAX_TURNS + 1u];  /* 'L' or 'R' per turn */
 static uint32_t     state_timer = 0;          /* ms when state was entered */
+static uint8_t      report_sent = 0;
+static uint32_t     open_area_timer = 0;
 
 /* ──────────────────────────────────────────
  *  Private helper: enter a new state
@@ -46,6 +48,14 @@ static uint32_t     state_timer = 0;          /* ms when state was entered */
 static void enter_state(FSM_State_t new_state) {
     state       = new_state;
     state_timer = SysTick_GetMs();
+
+    if (new_state == FSM_COMPLETE) {
+        report_sent = 0;
+    }
+
+    if (new_state == FSM_TURNING_LEFT || new_state == FSM_TURNING_RIGHT) {
+        Encoder_Reset();
+    }
 }
 
 /* How many ms have elapsed since we entered current state */
@@ -98,6 +108,9 @@ static void follow_walls(void) {
  * ────────────────────────────────────────── */
 void FSM_Init(void) {
     turn_count = 0;
+    turn_seq[0] = '\0';
+    report_sent = 0;
+    open_area_timer = 0;
     enter_state(FSM_IDLE);
 }
 
@@ -105,13 +118,6 @@ void FSM_Init(void) {
  *  FSM_Update  — call every main loop iteration
  * ────────────────────────────────────────── */
 void FSM_Update(void) {
-
-    /* ── Global emergency check (runs in every state) ──────── */
-    if (IR_ObstacleDetected() && state != FSM_EMERGENCY && state != FSM_COMPLETE) {
-        Motor_Stop();
-        enter_state(FSM_EMERGENCY);
-        return;
-    }
 
     uint16_t front = Ultrasonic_GetDistance(US_FRONT);
 
@@ -136,8 +142,27 @@ void FSM_Update(void) {
          * ──────────────────────────────────────── */
         case FSM_FOLLOW:
             if (front < FSM_FRONT_SLOW_MM && front != US_NO_ECHO) {
+                open_area_timer = 0;
                 enter_state(FSM_APPROACH_TURN);
             } else {
+                uint16_t left = Ultrasonic_GetDistance(US_LEFT);
+                uint16_t right = Ultrasonic_GetDistance(US_RIGHT);
+                uint8_t front_open = (front == US_NO_ECHO || front > FSM_OPEN_SIDE_MM);
+                uint8_t left_open = (left == US_NO_ECHO || left > FSM_OPEN_SIDE_MM);
+                uint8_t right_open = (right == US_NO_ECHO || right > FSM_OPEN_SIDE_MM);
+
+                if (turn_count > 0 && front_open && left_open && right_open) {
+                    if (open_area_timer == 0) {
+                        open_area_timer = SysTick_GetMs();
+                    } else if ((SysTick_GetMs() - open_area_timer) >= FSM_FINISH_OPEN_MS) {
+                        Motor_Stop();
+                        enter_state(FSM_COMPLETE);
+                        break;
+                    }
+                } else {
+                    open_area_timer = 0;
+                }
+
                 follow_walls();
             }
             break;
@@ -175,24 +200,30 @@ void FSM_Update(void) {
 
             if (left_open && !right_open) {
                 /* Left is open → turn left */
-                if (turn_count < FSM_MAX_TURNS)
+                if (turn_count < FSM_MAX_TURNS) {
                     turn_seq[turn_count] = 'L';
-                turn_count++;
+                    turn_count++;
+                    turn_seq[turn_count] = '\0';
+                }
                 enter_state(FSM_TURNING_LEFT);
 
             } else if (right_open && !left_open) {
                 /* Right is open → turn right */
-                if (turn_count < FSM_MAX_TURNS)
+                if (turn_count < FSM_MAX_TURNS) {
                     turn_seq[turn_count] = 'R';
-                turn_count++;
+                    turn_count++;
+                    turn_seq[turn_count] = '\0';
+                }
                 enter_state(FSM_TURNING_RIGHT);
 
             } else if (left_open && right_open) {
                 /* Both open (T-junction or end) → default turn left
                  * Change this rule based on your track layout.       */
-                if (turn_count < FSM_MAX_TURNS)
+                if (turn_count < FSM_MAX_TURNS) {
                     turn_seq[turn_count] = 'L';
-                turn_count++;
+                    turn_count++;
+                    turn_seq[turn_count] = '\0';
+                }
                 enter_state(FSM_TURNING_LEFT);
 
             } else {
@@ -209,7 +240,8 @@ void FSM_Update(void) {
          * ──────────────────────────────────────── */
         case FSM_TURNING_LEFT:
             Motor_TurnLeft();
-            if (state_elapsed() >= MOTOR_TURN_DURATION_MS) {
+            if (Encoder_TurnComplete(TICKS_FOR_90_TURN) ||
+                state_elapsed() >= MOTOR_TURN_DURATION_MS) {
                 Motor_Stop();
                 enter_state(FSM_FOLLOW);
             }
@@ -220,7 +252,8 @@ void FSM_Update(void) {
          * ──────────────────────────────────────── */
         case FSM_TURNING_RIGHT:
             Motor_TurnRight();
-            if (state_elapsed() >= MOTOR_TURN_DURATION_MS) {
+            if (Encoder_TurnComplete(TICKS_FOR_90_TURN) ||
+                state_elapsed() >= MOTOR_TURN_DURATION_MS) {
                 Motor_Stop();
                 enter_state(FSM_FOLLOW);
             }
@@ -232,21 +265,9 @@ void FSM_Update(void) {
          * ──────────────────────────────────────── */
         case FSM_COMPLETE:
             Motor_Stop();
-            /* Send report exactly once (first ms after entering state) */
-            if (state_elapsed() < 10) {
+            if (!report_sent) {
                 UART_SendTurnReport(turn_count, turn_seq);
-            }
-            break;
-
-        /* ────────────────────────────────────────
-         *  EMERGENCY — IR triggered or stuck
-         *  Motors off. Robot stays here until power cycle.
-         * ──────────────────────────────────────── */
-        case FSM_EMERGENCY:
-            Motor_Stop();
-            /* Auto-recover after 1 second if obstacle gone */
-            if (!IR_ObstacleDetected() && state_elapsed() > 1000) {
-                enter_state(FSM_FOLLOW);
+                report_sent = 1;
             }
             break;
     }
@@ -257,3 +278,5 @@ void FSM_Update(void) {
  * ────────────────────────────────────────── */
 FSM_State_t FSM_GetState(void)    { return state;      }
 uint8_t     FSM_GetTurnCount(void){ return turn_count; }
+uint8_t     FSM_IsRunning(void)   { return (state != FSM_IDLE && state != FSM_COMPLETE); }
+const char *FSM_GetTurnSequence(void) { return turn_seq; }

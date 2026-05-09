@@ -16,31 +16,20 @@ static volatile int32_t enc_right = 0;
  * ────────────────────────────────────────── */
 void Encoder_Init(void) {
 
-    /* 1. Set encoder channel A pins as INPUT using pins.h */
-    ENC_A_DDR &= ~(1 << ENC_L_A_PIN);   // PD2 → INPUT  (Left,  INT0)
-    ENC_A_DDR &= ~(1 << ENC_R_A_PIN);   // PD3 → INPUT  (Right, INT1)
+    /* GA25-370 encoder inputs: A on INT0/INT1, B kept available. */
+    ENC_A_DDR &= ~((1 << ENC_L_A_PIN) | (1 << ENC_R_A_PIN));
+    ENC_A_PORT |= (1 << ENC_L_A_PIN) | (1 << ENC_R_A_PIN);
 
-    /* 2. Enable internal pull-ups — protects against floating
-     *    signal if a wire is loose during testing             */
-    ENC_A_PORT |= (1 << ENC_L_A_PIN);
-    ENC_A_PORT |= (1 << ENC_R_A_PIN);
+    ENC_B_DDR &= ~((1 << ENC_L_B_PIN) | (1 << ENC_R_B_PIN));
+    ENC_B_PORT |= (1 << ENC_L_B_PIN) | (1 << ENC_R_B_PIN);
 
-    /* 3. EICRA — choose what triggers each interrupt
-     *
-     *    ISCx1 | ISCx0 | Trigger
-     *      0   |   0   | Low level
-     *      0   |   1   | Any change
-     *      1   |   0   | Falling edge
-     *      1   |   1   | Rising edge  ← we want this
-     *
-     *    INT0 → ISC01, ISC00
-     *    INT1 → ISC11, ISC10                                  */
-    EICRA |= (1 << ISC01) | (1 << ISC00);    // INT0 rising edge
-    EICRA |= (1 << ISC11) | (1 << ISC10);    // INT1 rising edge
+    Encoder_Reset();
 
-    /* 4. EIMSK — actually enable INT0 and INT1               */
-    EIMSK |= (1 << INT0);
-    EIMSK |= (1 << INT1);
+    EICRA = (EICRA & ~((1 << ISC01) | (1 << ISC00) |
+                       (1 << ISC11) | (1 << ISC10))) |
+            (1 << ISC01) | (1 << ISC00) |
+            (1 << ISC11) | (1 << ISC10);
+    EIMSK |= (1 << INT0) | (1 << INT1);
 }
 
 /* ──────────────────────────────────────────

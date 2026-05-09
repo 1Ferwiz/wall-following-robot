@@ -1,178 +1,274 @@
-# Wall Following Robot — Team 11
+# Wall Following Robot - Team 11
 
 ## Overview
-Autonomous wall-following robot built on AVR ATmega328P.
-Follows walls, detects 90° turns (L/R), counts them, sends report via Bluetooth.
+Autonomous wall-following robot built on AVR ATmega328P / Arduino Uno R3.
+The robot follows corridor walls, detects 90-degree turns, counts/classifies
+turns as `L` or `R`, and sends the final report to a PC through HC-05 Bluetooth.
 
----
-
-## Hardware
+## Current Hardware Configuration
 | Component | Details |
 |---|---|
-| MCU | Arduino Uno R3 — AVR ATmega328P @ 16 MHz |
-| IR Sensors | 2x Sharp GP2Y0A21 (Left & Right sides) |
-| Ultrasonic | HC-SR04 (Front) |
-| Motors | GA25-370 DC with encoders (6-wire) |
-| Motor Driver | TB6612FNG breakout |
-| Bluetooth | HC-05 breakout |
+| MCU | Arduino Uno R3 - AVR ATmega328P @ 16 MHz |
+| Wall Sensors | 3x HC-SR04 ultrasonic sensors |
+| Motors | 2x GA25-370 12V 250RPM encoder motors |
+| Motor Driver | HW-134A / L9110S dual motor driver |
+| Bluetooth | HC-05 breakout over USART0 |
 
----
+## Sensor Roles
+| Sensor | Role |
+|---|---|
+| Left HC-SR04 | Measures distance to left wall for wall following |
+| Right HC-SR04 | Measures distance to right wall for wall following |
+| Front HC-SR04 | Detects front wall / turn entry |
 
-## Pin Assignment (LOCKED — do not change without team discussion)
+## Arduino Pin Assignment
+Read `firmware/config/pins.h` before wiring or changing any driver.
+This table lists Arduino pins used by the firmware. The motor rows are
+Arduino-to-HW-134A control pins, not the six physical GA25 motor wires.
 
 | Signal | Arduino Pin | AVR Pin | Notes |
 |---|---|---|---|
-| IR Left | A0 | PC0 (ADC0) | Analog input |
-| IR Right | A1 | PC1 (ADC1) | Analog input |
-| Ultrasonic TRIG | D4 | PD4 | Digital output |
-| Ultrasonic ECHO | D8 | PB0 (ICP1) | Timer1 input capture |
-| Motor L PWM | D5 | PD5 (OC0B) | Timer0 — Left motor |
-| Motor R PWM | D6 | PD6 (OC0A) | Timer0 — Right motor |
-| Motor L IN1 | A2 | PC2 | Direction |
-| Motor L IN2 | A3 | PC3 | Direction |
-| Motor R IN1 | A4 | PC4 | Direction |
-| Motor R IN2 | A5 | PC5 | Direction |
-| TB6612 STBY | D12 | PB4 | HIGH = enabled |
-| Encoder Left A | D2 | PD2 (INT0) | External interrupt |
-| Encoder Right A | D3 | PD3 (INT1) | External interrupt |
-| Encoder Left B | D9 | PB1 | Future use |
-| Encoder Right B | D10 | PB2 | Future use |
-| UART TX | D1 | PD1 | → HC-05 RX |
-| UART RX | D0 | PD0 | ← HC-05 TX |
+| Front US TRIG | D4 | PD4 | Digital output |
+| Front US ECHO | D8 | PB0 | Timed using Timer1 counter |
+| Left US TRIG | A0 | PC0 | Digital output |
+| Left US ECHO | A1 | PC1 | Digital input |
+| Right US TRIG | D7 | PD7 | Digital output |
+| Right US ECHO | D11 | PB3 | Digital input |
+| HW-134A A-IA | D5 | PD5 / OC0B | Left motor PWM/speed input |
+| HW-134A A-IB | A2 | PC2 | Left motor direction input |
+| HW-134A B-IA | D6 | PD6 / OC0A | Right motor PWM/speed input |
+| HW-134A B-IB | A4 | PC4 | Right motor direction input |
+| Encoder L A | D2 | PD2 / INT0 | Left motor tick input |
+| Encoder R A | D3 | PD3 / INT1 | Right motor tick input |
+| Encoder L B | D9 | PB1 | Left encoder B channel |
+| Encoder R B | D10 | PB2 | Right encoder B channel |
+| UART TX | D1 | PD1 | To HC-05 RX |
+| UART RX | D0 | PD0 | From HC-05 TX |
 
----
+## Exact Wiring
+All grounds must be connected together: Arduino GND, HW-134A GND, sensor GND,
+HC-05 GND, encoder GND, and battery negative.
 
-## Motor Encoder Wire Colors (GA25-370)
-| Wire Color | Function | Connect To |
+### Power
+| From | To | Notes |
 |---|---|---|
-| Red | Motor M+ | TB6612 AO1 / BO1 |
-| Black | Motor M- | TB6612 AO2 / BO2 |
-| Yellow | Encoder VCC | Arduino 5V |
-| White | Encoder GND | Arduino GND |
-| Green | Encoder A | D2 (left) / D3 (right) |
-| Blue | Encoder B | D9 (left) / D10 (right) |
+| 12V battery positive | HW-134A VCC | Motor driver power |
+| 12V battery negative | Common GND rail | Same ground as Arduino |
+| Arduino GND | HW-134A GND | Common logic and motor reference |
+| Arduino 5V | HC-SR04 VCC pins | Front, left, and right sensors |
+| Arduino GND | HC-SR04 GND pins | Front, left, and right sensors |
+| Arduino 5V | GA25 encoder VCC wires | Both motor encoder boards |
+| Arduino GND | GA25 encoder GND wires | Both motor encoder boards |
+| Arduino 5V | HC-05 VCC | For common HC-05 breakout boards with onboard regulator |
+| Arduino GND | HC-05 GND | Common ground |
 
----
+### Front HC-SR04
+| From | To |
+|---|---|
+| Arduino 5V | Front HC-SR04 VCC |
+| Arduino GND | Front HC-SR04 GND |
+| Arduino D4 / PD4 | Front HC-SR04 TRIG |
+| Arduino D8 / PB0 | Front HC-SR04 ECHO |
 
-## Timer Assignment (LOCKED)
+### Left HC-SR04
+| From | To |
+|---|---|
+| Arduino 5V | Left HC-SR04 VCC |
+| Arduino GND | Left HC-SR04 GND |
+| Arduino A0 / PC0 | Left HC-SR04 TRIG |
+| Arduino A1 / PC1 | Left HC-SR04 ECHO |
+
+### Right HC-SR04
+| From | To |
+|---|---|
+| Arduino 5V | Right HC-SR04 VCC |
+| Arduino GND | Right HC-SR04 GND |
+| Arduino D7 / PD7 | Right HC-SR04 TRIG |
+| Arduino D11 / PB3 | Right HC-SR04 ECHO |
+
+### Arduino to HW-134A Control Wires
+These are the 4 control wires from Arduino to the motor driver. They are not
+the motor's 6-wire cable.
+
+| From | To | Controls |
+|---|---|---|
+| Arduino D5 / PD5 / OC0B | HW-134A A-IA | Left motor PWM/speed |
+| Arduino A2 / PC2 | HW-134A A-IB | Left motor direction |
+| Arduino D6 / PD6 / OC0A | HW-134A B-IA | Right motor PWM/speed |
+| Arduino A4 / PC4 | HW-134A B-IB | Right motor direction |
+| 12V battery positive | HW-134A VCC | Motor driver power |
+| Common GND rail | HW-134A GND | Logic and motor reference |
+
+On the board in your photo, the 6-pin header is the control/power side:
+
+| HW-134A Pin Label | Connect To |
+|---|---|
+| `B-IA` | Arduino D6 / PD6 |
+| `B-IB` | Arduino A4 / PC4 |
+| `GND` | Common GND |
+| `VCC` | 12V battery positive |
+| `A-IA` | Arduino D5 / PD5 |
+| `A-IB` | Arduino A2 / PC2 |
+
+The 4-pin header is the motor-output side:
+
+| HW-134A Output | Connect To |
+|---|---|
+| Motor A output 1 | Left motor `M+` |
+| Motor A output 2 | Left motor `M-` |
+| Motor B output 1 | Right motor `M+` |
+| Motor B output 2 | Right motor `M-` |
+
+### GA25-370 Motor Wiring - 6 Wires Per Motor
+Each GA25 motor has 6 wires total:
+- 2 motor power wires go to the HW-134A motor output.
+- 4 encoder wires go to Arduino 5V, GND, and encoder signal pins.
+
+So each motor has exactly 6 physical motor wires, while the HW-134A also has
+separate Arduino control wires listed in the previous table.
+
+Wire colors can vary by seller. If the motor PCB has labels, trust the labels
+more than color. Common labels are `M+`, `M-`, `VCC`, `GND`, `A`, and `B`.
+
+### Left GA25-370 Motor
+| Motor Wire / PCB Label | Common Color | Connect To |
+|---|---|---|
+| `M+` motor power | Red | HW-134A Motor A output 1 |
+| `M-` motor power | Black | HW-134A Motor A output 2 |
+| Encoder `VCC` | Yellow | Arduino 5V |
+| Encoder `GND` | White | Arduino GND |
+| Encoder `A` | Green | Arduino D2 / PD2 / INT0 |
+| Encoder `B` | Blue | Arduino D9 / PB1 |
+
+### Right GA25-370 Motor
+| Motor Wire / PCB Label | Common Color | Connect To |
+|---|---|---|
+| `M+` motor power | Red | HW-134A Motor B output 1 |
+| `M-` motor power | Black | HW-134A Motor B output 2 |
+| Encoder `VCC` | Yellow | Arduino 5V |
+| Encoder `GND` | White | Arduino GND |
+| Encoder `A` | Green | Arduino D3 / PD3 / INT1 |
+| Encoder `B` | Blue | Arduino D10 / PB2 |
+
+If a motor spins backward during the forward test, swap only that motor's
+`M+` and `M-` wires on the HW-134A motor output. Do not swap encoder `VCC`
+and `GND`.
+
+### HC-05 Bluetooth
+Disconnect HC-05 TX/RX from D0/D1 while uploading firmware.
+
+| From | To | Notes |
+|---|---|---|
+| Arduino 5V | HC-05 VCC | Breakout board VCC |
+| Arduino GND | HC-05 GND | Common ground |
+| HC-05 TXD | Arduino D0 / PD0 / RXD | AVR receives Bluetooth data |
+| Arduino D1 / PD1 / TXD | HC-05 RXD through level divider | AVR sends Bluetooth data |
+| Arduino D1 / PD1 / TXD | 1 kOhm resistor, then HC-05 RXD | Divider top resistor |
+| HC-05 RXD | 2 kOhm resistor, then GND | Divider bottom resistor |
+| HC-05 STATE | Not connected | Optional |
+| HC-05 EN/KEY | Not connected | Optional |
+
+## Timer Assignment
 | Timer | Role |
 |---|---|
-| Timer0 | Motor PWM (OC0B=D5 Left, OC0A=D6 Right) |
-| Timer1 | Ultrasonic echo capture (ICP1=D8) |
-| Timer2 | 1ms system tick (millis) |
+| Timer0 | Motor PWM, OC0B=D5 left and OC0A=D6 right |
+| Timer1 | Free-running ultrasonic echo timing for all HC-SR04 sensors |
+| Timer2 | 1 ms system tick through `SysTick` |
 
----
-
-## Project Structure
-```
-firmware/
-  config/   → pins.h  (pin + timer definitions — read before writing any driver)
-  inc/      → header files (one per module)
-  src/      → source files (one per module)
-docs/       → reports, FSM diagrams
-hardware/   → schematics
-test/       → per-module test sketches
-```
-
----
-
-## Module Status
-| Module | File | Owner | Status |
-|---|---|---|---|
-| ADC | adc.c | Person 1 | ✅ Done |
-| IR Sensor | ir_sensor.c | Person 1 | ✅ Done |
-| Ultrasonic | ultrasonic.c | Person 1 | ✅ Done |
-| Motor | motor.c | Person 2 | ✅ Done |
-| Encoder | encoder.c | Person 3 | 🔄 In progress |
-| UART | uart.c | Person 4 | 🔄 In progress |
-| FSM | fsm.c | All | ⏳ Waiting |
-| Main loop | main.c | All | ⏳ Waiting |
-
----
-
-## Module Interfaces (agreed — do not rename)
+## Module Interfaces
 ```c
-/* IR Sensor */
-void     IR_Init(void);
-uint16_t IR_GetLeftDistance(void);   // returns mm
-uint16_t IR_GetRightDistance(void);  // returns mm
+/* System tick */
+void SysTick_Init(void);
+uint32_t SysTick_GetMs(void);
 
 /* Ultrasonic */
-void     Ultrasonic_Init(void);
-void     Ultrasonic_Trigger(void);      // call every 20ms
-uint16_t Ultrasonic_GetDistance(void);  // returns mm, non-blocking
+void Ultrasonic_Init(void);
+void Ultrasonic_Update(void);
+uint16_t Ultrasonic_GetDistance(US_Sensor_t sensor);
 
-/* Motor — lifecycle */
-void motor_init(void);          // call once at startup
-void motor_enable(void);        // STBY HIGH — TB6612 active
-void motor_disable(void);       // STBY LOW  — TB6612 standby
+/* Motors */
+void Motor_Init(void);
+void Motor_SetSpeed(int left, int right);
+void Motor_Stop(void);
+void Motor_Forward(void);
+void Motor_TurnLeft(void);
+void Motor_TurnRight(void);
+void Motor_SlowDown(void);
 
-/* Motor — FSM motion commands */
-void motor_forward(uint8_t speed);      // both wheels forward
-void motor_backward(uint8_t speed);     // both wheels backward
-void motor_stop(void);                  // coast stop
-void motor_brake(void);                 // active brake — use before turns
-void motor_turn_left(uint8_t speed);    // in-place left  rotation
-void motor_turn_right(uint8_t speed);   // in-place right rotation
-
-/* Motor — PID wall-following */
-void motor_set_differential(int16_t left_pwm, int16_t right_pwm); // signed -255 to +255
-
-/* Motor — individual control */
-void motor_left_set(uint8_t speed, uint8_t dir);
-void motor_right_set(uint8_t speed, uint8_t dir);
-
-/* Motor — compatibility wrappers */
-void Motor_SetSpeed(int left, int right);   // → motor_set_differential()
-void Motor_Stop(void);                      // → motor_stop()
-
-/* Encoder */
-void    Encoder_Init(void);
+/* Encoders */
+void Encoder_Init(void);
 int32_t Encoder_GetLeft(void);
 int32_t Encoder_GetRight(void);
-void    Encoder_Reset(void);
+void Encoder_Reset(void);
+float Encoder_TicksToCm(int32_t ticks);
+uint32_t Encoder_CmToTicks(float cm);
+uint8_t Encoder_TurnComplete(uint32_t target_ticks);
 
-/* UART */
-void    UART_Init(void);
-void    UART_SendChar(char c);
-void    UART_SendString(const char *s);
-uint8_t UART_Available(void);
-char    UART_ReadChar(void);
+/* UART / HC-05 */
+void UART_Init(void);
+bool UART_WriteByte(uint8_t byte);
+uint8_t UART_Write(const uint8_t *data, uint8_t length);
+void UART_SendChar(char c);
+void UART_SendString(const char *text);
+void UART_SendTurnReport(uint8_t count, const char *sequence);
+bool UART_RxOverflowed(void);
+bool UART_TxOverflowed(void);
+
+/* FSM */
+void FSM_Init(void);
+void FSM_Update(void);
+FSM_State_t FSM_GetState(void);
+uint8_t FSM_GetTurnCount(void);
+const char *FSM_GetTurnSequence(void);
 ```
 
----
+## Runtime Behavior
+- `main.c` initializes the system tick, motors, ultrasonic sensors, encoders,
+  UART, and FSM.
+- `Ultrasonic_Update()` runs every 20 ms and measures one HC-SR04 at a time:
+  front, left, right, then repeats.
+- `FSM_Update()` runs every 1 ms.
+- The FSM starts from `FSM_IDLE`, waits 500 ms, then enters wall following.
+- Front ultrasonic detects turn entry.
+- Left/right ultrasonic readings classify whether the open turn is left or right.
+- Turn states stop using GA25 encoder ticks, with `MOTOR_TURN_DURATION_MS` as
+  a timed fallback.
+- If front, left, and right are all open after at least one logged turn, the FSM
+  treats that stable open area as the finish condition.
+- On complete, UART sends:
+```text
+Turns: N
+Sequence: L, R, ...
+```
 
 ## Development Rules
-- **Branch:** all work on `main` — pull before you start, push after every 2-3 commits
-- **NEVER** use Arduino APIs (`digitalWrite`, `analogRead`, `delay`, etc.)
-- **NEVER** use blocking delays in the control loop
-- **ALWAYS** read `firmware/config/pins.h` before writing a driver
-- **ALWAYS** test your module independently before touching FSM
-- **Disconnect HC-05 TX/RX wires before uploading code**
+- Use register-level AVR C.
+- Do not use Arduino APIs such as `digitalWrite`, `analogRead`, or `delay`.
+- Do not use blocking delays in the main control loop.
+- Keep HC-05 disconnected from D0/D1 while uploading code.
+- GA25 encoder ticks are counted on D2/D3 through INT0/INT1.
+- UART uses interrupt-driven RX/TX ring buffers at 9600 8N1.
+- Ultrasonic trigger pulses use the AVR `_delay_us()` helper for the required
+  10 us HC-SR04 pulse; no Arduino timing API is used.
 
----
+## Tuning Values
+Tune these on the real hardware:
+- `MOTOR_BASE_SPEED`
+- `MOTOR_TURN_SPEED`
+- `MOTOR_TURN_DURATION_MS`
+- `TICKS_FOR_90_TURN`
+- `WALL_TARGET_MM`
+- `FSM_FRONT_SLOW_MM`
+- `FSM_FRONT_TURN_MM`
+- `FSM_OPEN_SIDE_MM`
+- Encoder constants in `firmware/inc/encoder.h`
 
-## Build Instructions
-1. Install VS Code + PlatformIO extension
-2. `git clone https://github.com/1Ferwiz/wall-following-robot.git`
-3. Open folder in VS Code
-4. Fix IntelliSense path (run once in PowerShell inside repo folder):
+## Build
 ```powershell
-(Get-Content .vscode\c_cpp_properties.json) -replace 'Alfred', $env:USERNAME | Set-Content .vscode\c_cpp_properties.json
+pio run
 ```
-5. Build: `pio run`
-6. Upload: `pio run --target upload`
 
----
-
-## Progress
-- [x] Project structure
-- [x] Pin assignment locked (`firmware/config/pins.h`)
-- [x] PlatformIO configured (`platformio.ini`)
-- [x] ADC driver
-- [x] IR sensor driver
-- [x] Ultrasonic driver
-- [x] Motor driver (`motor.c`, `motor.h`)
-- [ ] Encoder driver
-- [ ] UART driver
-- [ ] FSM implementation
+If `pio` is not on PATH, use:
+```powershell
+C:\Users\mods4\.platformio\penv\Scripts\platformio.exe run
+```
