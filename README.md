@@ -11,8 +11,9 @@ turns as `L` or `R`, and sends the final report to a PC through HC-05 Bluetooth.
 | MCU | Arduino Uno R3 - AVR ATmega328P @ 16 MHz |
 | Wall Sensors | 3x HC-SR04 ultrasonic sensors |
 | Motors | 2x GA25-370 12V 250RPM encoder motors |
-| Motor Driver | L298N dual H-bridge motor driver |
+| Motor Driver | 2x L298N dual H-bridge modules, one module per motor |
 | Bluetooth | HC-05 breakout over USART0 |
+| Start Switch | 2-pin ON/OFF switch |
 
 ## Sensor Roles
 | Sensor | Role |
@@ -34,30 +35,34 @@ Arduino-to-L298N control pins, not the six physical GA25 motor wires.
 | Left US ECHO | A1 | PC1 | Digital input |
 | Right US TRIG | D7 | PD7 | Digital output |
 | Right US ECHO | D11 | PB3 | Digital input |
-| L298N ENA | D5 | PD5 / OC0B | Left motor PWM enable |
-| L298N IN1 | A2 | PC2 | Left motor direction input 1 |
-| L298N IN2 | A3 | PC3 | Left motor direction input 2 |
-| L298N ENB | D6 | PD6 / OC0A | Right motor PWM enable |
-| L298N IN3 | A4 | PC4 | Right motor direction input 1 |
-| L298N IN4 | A5 | PC5 | Right motor direction input 2 |
+| Left L298N ENA | D5 | PD5 / OC0B | Left motor PWM enable |
+| Left L298N IN1 | A2 | PC2 | Left motor direction input 1 |
+| Left L298N IN2 | A3 | PC3 | Left motor direction input 2 |
+| Right L298N ENA | D6 | PD6 / OC0A | Right motor PWM enable |
+| Right L298N IN1 | A4 | PC4 | Right motor direction input 1 |
+| Right L298N IN2 | A5 | PC5 | Right motor direction input 2 |
 | Encoder L A | D2 | PD2 / INT0 | Left motor tick input |
 | Encoder R A | D3 | PD3 / INT1 | Right motor tick input |
 | Encoder L B | D9 | PB1 | Left encoder B channel |
 | Encoder R B | D10 | PB2 | Right encoder B channel |
+| Start switch | D12 | PB4 | Input with internal pull-up, ON connects to GND |
 | UART TX | D1 | PD1 | To HC-05 RX |
 | UART RX | D0 | PD0 | From HC-05 TX |
 
 ## Exact Wiring
-All grounds must be connected together: Arduino GND, L298N GND, sensor GND,
+All grounds must be connected together: Arduino GND, both L298N GND pins, sensor GND,
 HC-05 GND, encoder GND, and battery negative.
 
 ### Power
 | From | To | Notes |
 |---|---|---|
-| 12V battery positive | L298N +12V / VS | Motor driver power |
+| 12V battery positive | Left L298N +12V / VS | Left motor driver power |
+| 12V battery positive | Right L298N +12V / VS | Right motor driver power |
 | 12V battery negative | Common GND rail | Same ground as Arduino |
-| Arduino GND | L298N GND | Common logic and motor reference |
-| Arduino 5V | L298N 5V logic pin | Only if the L298N board's 5V regulator jumper is removed |
+| Arduino GND | Left L298N GND | Common logic and motor reference |
+| Arduino GND | Right L298N GND | Common logic and motor reference |
+| Arduino 5V | Left L298N 5V logic pin | Only if that L298N board's 5V regulator jumper is removed |
+| Arduino 5V | Right L298N 5V logic pin | Only if that L298N board's 5V regulator jumper is removed |
 | Arduino 5V | HC-SR04 VCC pins | Front, left, and right sensors |
 | Arduino GND | HC-SR04 GND pins | Front, left, and right sensors |
 | Arduino 5V | GA25 encoder VCC wires | Both motor encoder boards |
@@ -90,30 +95,54 @@ HC-05 GND, encoder GND, and battery negative.
 | Arduino D11 / PB3 | Right HC-SR04 ECHO |
 
 ### Arduino to L298N Control Wires
-These are the 6 control wires from Arduino to the motor driver. They are not
-the motor's 6-wire cable. Remove the ENA/ENB jumpers if your L298N board has
-them installed, otherwise Arduino PWM on D5/D6 will be bypassed.
-Do not confuse ENA/ENB jumpers with the board's 5V regulator jumper.
+Use one L298N board for the left motor and one L298N board for the right motor.
+Only channel A is used on each board. The unused channel B pins on both boards
+can stay unwired.
+
+Remove the ENA jumper from each L298N board because Arduino D5/D6 provide PWM
+speed control. Do not confuse the ENA jumper with the board's 5V regulator
+jumper.
 
 | From | To | Controls |
 |---|---|---|
-| Arduino D5 / PD5 / OC0B | L298N ENA | Left motor PWM/speed |
-| Arduino A2 / PC2 | L298N IN1 | Left motor forward direction input |
-| Arduino A3 / PC3 | L298N IN2 | Left motor reverse direction input |
-| Arduino D6 / PD6 / OC0A | L298N ENB | Right motor PWM/speed |
-| Arduino A4 / PC4 | L298N IN3 | Right motor forward direction input |
-| Arduino A5 / PC5 | L298N IN4 | Right motor reverse direction input |
-| 12V battery positive | L298N +12V / VS | Motor driver power |
-| Common GND rail | L298N GND | Logic and motor reference |
+| Arduino D5 / PD5 / OC0B | Left L298N ENA | Left motor PWM/speed |
+| Arduino A2 / PC2 | Left L298N IN1 | Left motor forward direction input |
+| Arduino A3 / PC3 | Left L298N IN2 | Left motor reverse direction input |
+| Arduino D6 / PD6 / OC0A | Right L298N ENA | Right motor PWM/speed |
+| Arduino A4 / PC4 | Right L298N IN1 | Right motor forward direction input |
+| Arduino A5 / PC5 | Right L298N IN2 | Right motor reverse direction input |
+| 12V battery positive | Left L298N +12V / VS | Left motor driver power |
+| 12V battery positive | Right L298N +12V / VS | Right motor driver power |
+| Common GND rail | Left L298N GND | Logic and motor reference |
+| Common GND rail | Right L298N GND | Logic and motor reference |
+
+### L298N Jumpers
+| Jumper | Left L298N | Right L298N | Notes |
+|---|---|---|---|
+| ENA jumper | Removed | Removed | Arduino PWM must connect to ENA |
+| ENB jumper | Doesn't matter | Doesn't matter | Channel B is unused |
+| 5V regulator jumper | Installed when feeding +12V | Installed when feeding +12V | If removed, feed Arduino 5V into that board's 5V pin |
 
 The motor-output screw terminals are:
 
 | L298N Output | Connect To |
 |---|---|
-| OUT1 | Left motor `M+` |
-| OUT2 | Left motor `M-` |
-| OUT3 | Right motor `M+` |
-| OUT4 | Right motor `M-` |
+| Left L298N OUT1 | Left motor `M+` |
+| Left L298N OUT2 | Left motor `M-` |
+| Right L298N OUT1 | Right motor `M+` |
+| Right L298N OUT2 | Right motor `M-` |
+
+### Start Switch
+The start switch is a 2-pin ON/OFF switch. The firmware enables Arduino's
+internal pull-up on D12, so no external resistor is needed.
+
+| From | To | Notes |
+|---|---|---|
+| Switch pin 1 | Arduino D12 / PB4 | Start input |
+| Switch pin 2 | Arduino GND | ON closes D12 to GND |
+
+When the switch is OFF, the robot stays stopped and the run state is reset.
+When the switch is ON, the robot starts wall following.
 
 ### GA25-370 Motor Wiring - 6 Wires Per Motor
 Each GA25 motor has 6 wires total:
@@ -129,8 +158,8 @@ more than color. Common labels are `M+`, `M-`, `VCC`, `GND`, `A`, and `B`.
 ### Left GA25-370 Motor
 | Motor Wire / PCB Label | Common Color | Connect To |
 |---|---|---|
-| `M+` motor power | Red | L298N OUT1 |
-| `M-` motor power | Black | L298N OUT2 |
+| `M+` motor power | Red | Left L298N OUT1 |
+| `M-` motor power | Black | Left L298N OUT2 |
 | Encoder `VCC` | Yellow | Arduino 5V |
 | Encoder `GND` | White | Arduino GND |
 | Encoder `A` | Green | Arduino D2 / PD2 / INT0 |
@@ -139,15 +168,15 @@ more than color. Common labels are `M+`, `M-`, `VCC`, `GND`, `A`, and `B`.
 ### Right GA25-370 Motor
 | Motor Wire / PCB Label | Common Color | Connect To |
 |---|---|---|
-| `M+` motor power | Red | L298N OUT3 |
-| `M-` motor power | Black | L298N OUT4 |
+| `M+` motor power | Red | Right L298N OUT1 |
+| `M-` motor power | Black | Right L298N OUT2 |
 | Encoder `VCC` | Yellow | Arduino 5V |
 | Encoder `GND` | White | Arduino GND |
 | Encoder `A` | Green | Arduino D3 / PD3 / INT1 |
 | Encoder `B` | Blue | Arduino D10 / PB2 |
 
 If a motor spins backward during the forward test, swap only that motor's
-`M+` and `M-` wires on the L298N motor output. Do not swap encoder `VCC`
+`M+` and `M-` wires on its L298N motor output. Do not swap encoder `VCC`
 and `GND`.
 
 ### HC-05 Bluetooth
@@ -224,7 +253,11 @@ const char *FSM_GetTurnSequence(void);
 - `Ultrasonic_Update()` runs every 20 ms and measures one HC-SR04 at a time:
   front, left, right, then repeats.
 - `FSM_Update()` runs every 1 ms.
-- The FSM starts from `FSM_IDLE`, waits 500 ms, then enters wall following.
+- The FSM starts from `FSM_IDLE` and keeps motors stopped while the D12 start
+  switch is OFF.
+- When the D12 start switch is ON, the FSM waits `FSM_START_DELAY_MS`, then
+  enters wall following.
+- Turning the D12 start switch OFF stops the motors and resets the run state.
 - Front ultrasonic detects turn entry.
 - Left/right ultrasonic readings classify whether the open turn is left or right.
 - Turn states stop using GA25 encoder ticks, with `MOTOR_TURN_DURATION_MS` as
@@ -242,6 +275,7 @@ Sequence: L, R, ...
 - Do not use Arduino APIs such as `digitalWrite`, `analogRead`, or `delay`.
 - Do not use blocking delays in the main control loop.
 - Keep HC-05 disconnected from D0/D1 while uploading code.
+- The start switch uses D12 with the internal pull-up; ON connects D12 to GND.
 - GA25 encoder ticks are counted on D2/D3 through INT0/INT1.
 - UART uses interrupt-driven RX/TX ring buffers at 9600 8N1.
 - Ultrasonic trigger pulses use the AVR `_delay_us()` helper for the required
@@ -266,5 +300,5 @@ pio run
 
 If `pio` is not on PATH, use:
 ```powershell
-C:\Users\mods4\.platformio\penv\Scripts\platformio.exe run
+C:\Users\Omart\.platformio\penv\Scripts\platformio.exe run
 ```

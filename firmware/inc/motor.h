@@ -5,13 +5,13 @@
 #include "../config/pins.h"
 
 /*
- * L298N driver for two GA25-370 DC gear motors.
+ * Two L298N boards for two GA25-370 DC gear motors.
  * Speed range: -255 full reverse, +255 full forward.
  * Timer0 Fast PWM frequency is about 7.8 kHz with /8 prescaler.
  *
  * Arduino wiring:
- *   D5 / OC0B -> ENA, A2 -> IN1, A3 -> IN2
- *   D6 / OC0A -> ENB, A4 -> IN3, A5 -> IN4
+ *   Left board:  D5 / OC0B -> ENA, A2 -> IN1, A3 -> IN2
+ *   Right board: D6 / OC0A -> ENA, A4 -> IN1, A5 -> IN2
  */
 
 #define MOTOR_BASE_SPEED        160

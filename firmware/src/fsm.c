@@ -1,4 +1,5 @@
 #include "../inc/fsm.h"
+#include "../config/pins.h"
 #include "../inc/encoder.h"
 #include "../inc/motor.h"
 #include "../inc/ultrasonic.h"
@@ -40,6 +41,24 @@ static char         turn_seq[FSM_MAX_TURNS + 1u];  /* 'L' or 'R' per turn */
 static uint32_t     state_timer = 0;          /* ms when state was entered */
 static uint8_t      report_sent = 0;
 static uint32_t     open_area_timer = 0;
+static uint8_t      switch_was_on = 0;
+
+static void reset_run_state(void) {
+    turn_count = 0;
+    turn_seq[0] = '\0';
+    report_sent = 0;
+    open_area_timer = 0;
+    switch_was_on = 0;
+}
+
+static void start_switch_init(void) {
+    START_SW_DDR &= (uint8_t)~(1 << START_SW_PIN);
+    START_SW_PORT |= (1 << START_SW_PIN);
+}
+
+static uint8_t start_switch_is_on(void) {
+    return (START_SW_PINREG & (1 << START_SW_PIN)) ? 0u : 1u;
+}
 
 /* ──────────────────────────────────────────
  *  Private helper: enter a new state
@@ -107,10 +126,8 @@ static void follow_walls(void) {
  *  FSM_Init
  * ────────────────────────────────────────── */
 void FSM_Init(void) {
-    turn_count = 0;
-    turn_seq[0] = '\0';
-    report_sent = 0;
-    open_area_timer = 0;
+    start_switch_init();
+    reset_run_state();
     enter_state(FSM_IDLE);
 }
 
@@ -119,18 +136,32 @@ void FSM_Init(void) {
  * ────────────────────────────────────────── */
 void FSM_Update(void) {
 
+    uint8_t switch_on = start_switch_is_on();
+
+    if (!switch_on) {
+        Motor_Stop();
+        if (state != FSM_IDLE || turn_count != 0 || report_sent || open_area_timer != 0) {
+            reset_run_state();
+            enter_state(FSM_IDLE);
+        }
+        return;
+    }
+
+    if (!switch_was_on) {
+        switch_was_on = 1;
+        enter_state(FSM_IDLE);
+    }
+
     uint16_t front = Ultrasonic_GetDistance(US_FRONT);
 
     switch (state) {
 
         /* ────────────────────────────────────────
-         *  IDLE — motors off, waiting
-         *  Transitions to FOLLOW automatically.
-         *  Insert a start button / Bluetooth trigger here later.
+         *  IDLE: motors off, waiting after the start switch turns on.
          * ──────────────────────────────────────── */
         case FSM_IDLE:
             Motor_Stop();
-            if (state_elapsed() > 500) {     /* 500ms startup delay */
+            if (state_elapsed() >= FSM_START_DELAY_MS) {
                 enter_state(FSM_FOLLOW);
             }
             break;

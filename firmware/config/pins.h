@@ -35,21 +35,27 @@
 #define US_RIGHT_ECHO_PINREG    PINB
 #define US_RIGHT_ECHO_PIN       PB3        /* D11 */
 
-/* L298N dual H-bridge motor driver */
+/* Two L298N boards, one motor on channel A of each board */
 #define MOTOR_L_EN_DDR          DDRD
 #define MOTOR_L_EN_PORT         PORTD
-#define MOTOR_L_EN_PIN          PD5        /* D5 / OC0B -> ENA */
+#define MOTOR_L_EN_PIN          PD5        /* D5 / OC0B -> left L298N ENA */
 
 #define MOTOR_R_EN_DDR          DDRD
 #define MOTOR_R_EN_PORT         PORTD
-#define MOTOR_R_EN_PIN          PD6        /* D6 / OC0A -> ENB */
+#define MOTOR_R_EN_PIN          PD6        /* D6 / OC0A -> right L298N ENA */
 
 #define MOTOR_IN_DDR            DDRC
 #define MOTOR_IN_PORT           PORTC
-#define MOTOR_L_IN1_PIN         PC2        /* A2 -> IN1 */
-#define MOTOR_L_IN2_PIN         PC3        /* A3 -> IN2 */
-#define MOTOR_R_IN1_PIN         PC4        /* A4 -> IN3 */
-#define MOTOR_R_IN2_PIN         PC5        /* A5 -> IN4 */
+#define MOTOR_L_IN1_PIN         PC2        /* A2 -> left L298N IN1 */
+#define MOTOR_L_IN2_PIN         PC3        /* A3 -> left L298N IN2 */
+#define MOTOR_R_IN1_PIN         PC4        /* A4 -> right L298N IN1 */
+#define MOTOR_R_IN2_PIN         PC5        /* A5 -> right L298N IN2 */
+
+/* 2-pin ON/OFF start switch. ON closes D12 to GND. */
+#define START_SW_DDR            DDRB
+#define START_SW_PORT           PORTB
+#define START_SW_PINREG         PINB
+#define START_SW_PIN            PB4        /* D12 */
 
 /* GA25-370 encoder inputs */
 #define ENC_A_DDR               DDRD
