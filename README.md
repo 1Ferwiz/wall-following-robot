@@ -11,7 +11,7 @@ turns as `L` or `R`, and sends the final report to a PC through HC-05 Bluetooth.
 | MCU | Arduino Uno R3 - AVR ATmega328P @ 16 MHz |
 | Wall Sensors | 3x HC-SR04 ultrasonic sensors |
 | Motors | 2x GA25-370 12V 250RPM encoder motors |
-| Motor Driver | HW-134A / L9110S dual motor driver |
+| Motor Driver | L298N dual H-bridge motor driver |
 | Bluetooth | HC-05 breakout over USART0 |
 
 ## Sensor Roles
@@ -24,7 +24,7 @@ turns as `L` or `R`, and sends the final report to a PC through HC-05 Bluetooth.
 ## Arduino Pin Assignment
 Read `firmware/config/pins.h` before wiring or changing any driver.
 This table lists Arduino pins used by the firmware. The motor rows are
-Arduino-to-HW-134A control pins, not the six physical GA25 motor wires.
+Arduino-to-L298N control pins, not the six physical GA25 motor wires.
 
 | Signal | Arduino Pin | AVR Pin | Notes |
 |---|---|---|---|
@@ -34,10 +34,12 @@ Arduino-to-HW-134A control pins, not the six physical GA25 motor wires.
 | Left US ECHO | A1 | PC1 | Digital input |
 | Right US TRIG | D7 | PD7 | Digital output |
 | Right US ECHO | D11 | PB3 | Digital input |
-| HW-134A A-IA | D5 | PD5 / OC0B | Left motor PWM/speed input |
-| HW-134A A-IB | A2 | PC2 | Left motor direction input |
-| HW-134A B-IA | D6 | PD6 / OC0A | Right motor PWM/speed input |
-| HW-134A B-IB | A4 | PC4 | Right motor direction input |
+| L298N ENA | D5 | PD5 / OC0B | Left motor PWM enable |
+| L298N IN1 | A2 | PC2 | Left motor direction input 1 |
+| L298N IN2 | A3 | PC3 | Left motor direction input 2 |
+| L298N ENB | D6 | PD6 / OC0A | Right motor PWM enable |
+| L298N IN3 | A4 | PC4 | Right motor direction input 1 |
+| L298N IN4 | A5 | PC5 | Right motor direction input 2 |
 | Encoder L A | D2 | PD2 / INT0 | Left motor tick input |
 | Encoder R A | D3 | PD3 / INT1 | Right motor tick input |
 | Encoder L B | D9 | PB1 | Left encoder B channel |
@@ -46,15 +48,16 @@ Arduino-to-HW-134A control pins, not the six physical GA25 motor wires.
 | UART RX | D0 | PD0 | From HC-05 TX |
 
 ## Exact Wiring
-All grounds must be connected together: Arduino GND, HW-134A GND, sensor GND,
+All grounds must be connected together: Arduino GND, L298N GND, sensor GND,
 HC-05 GND, encoder GND, and battery negative.
 
 ### Power
 | From | To | Notes |
 |---|---|---|
-| 12V battery positive | HW-134A VCC | Motor driver power |
+| 12V battery positive | L298N +12V / VS | Motor driver power |
 | 12V battery negative | Common GND rail | Same ground as Arduino |
-| Arduino GND | HW-134A GND | Common logic and motor reference |
+| Arduino GND | L298N GND | Common logic and motor reference |
+| Arduino 5V | L298N 5V logic pin | Only if the L298N board's 5V regulator jumper is removed |
 | Arduino 5V | HC-SR04 VCC pins | Front, left, and right sensors |
 | Arduino GND | HC-SR04 GND pins | Front, left, and right sensors |
 | Arduino 5V | GA25 encoder VCC wires | Both motor encoder boards |
@@ -86,45 +89,38 @@ HC-05 GND, encoder GND, and battery negative.
 | Arduino D7 / PD7 | Right HC-SR04 TRIG |
 | Arduino D11 / PB3 | Right HC-SR04 ECHO |
 
-### Arduino to HW-134A Control Wires
-These are the 4 control wires from Arduino to the motor driver. They are not
-the motor's 6-wire cable.
+### Arduino to L298N Control Wires
+These are the 6 control wires from Arduino to the motor driver. They are not
+the motor's 6-wire cable. Remove the ENA/ENB jumpers if your L298N board has
+them installed, otherwise Arduino PWM on D5/D6 will be bypassed.
+Do not confuse ENA/ENB jumpers with the board's 5V regulator jumper.
 
 | From | To | Controls |
 |---|---|---|
-| Arduino D5 / PD5 / OC0B | HW-134A A-IA | Left motor PWM/speed |
-| Arduino A2 / PC2 | HW-134A A-IB | Left motor direction |
-| Arduino D6 / PD6 / OC0A | HW-134A B-IA | Right motor PWM/speed |
-| Arduino A4 / PC4 | HW-134A B-IB | Right motor direction |
-| 12V battery positive | HW-134A VCC | Motor driver power |
-| Common GND rail | HW-134A GND | Logic and motor reference |
+| Arduino D5 / PD5 / OC0B | L298N ENA | Left motor PWM/speed |
+| Arduino A2 / PC2 | L298N IN1 | Left motor forward direction input |
+| Arduino A3 / PC3 | L298N IN2 | Left motor reverse direction input |
+| Arduino D6 / PD6 / OC0A | L298N ENB | Right motor PWM/speed |
+| Arduino A4 / PC4 | L298N IN3 | Right motor forward direction input |
+| Arduino A5 / PC5 | L298N IN4 | Right motor reverse direction input |
+| 12V battery positive | L298N +12V / VS | Motor driver power |
+| Common GND rail | L298N GND | Logic and motor reference |
 
-On the board in your photo, the 6-pin header is the control/power side:
+The motor-output screw terminals are:
 
-| HW-134A Pin Label | Connect To |
+| L298N Output | Connect To |
 |---|---|
-| `B-IA` | Arduino D6 / PD6 |
-| `B-IB` | Arduino A4 / PC4 |
-| `GND` | Common GND |
-| `VCC` | 12V battery positive |
-| `A-IA` | Arduino D5 / PD5 |
-| `A-IB` | Arduino A2 / PC2 |
-
-The 4-pin header is the motor-output side:
-
-| HW-134A Output | Connect To |
-|---|---|
-| Motor A output 1 | Left motor `M+` |
-| Motor A output 2 | Left motor `M-` |
-| Motor B output 1 | Right motor `M+` |
-| Motor B output 2 | Right motor `M-` |
+| OUT1 | Left motor `M+` |
+| OUT2 | Left motor `M-` |
+| OUT3 | Right motor `M+` |
+| OUT4 | Right motor `M-` |
 
 ### GA25-370 Motor Wiring - 6 Wires Per Motor
 Each GA25 motor has 6 wires total:
-- 2 motor power wires go to the HW-134A motor output.
+- 2 motor power wires go to the L298N motor output.
 - 4 encoder wires go to Arduino 5V, GND, and encoder signal pins.
 
-So each motor has exactly 6 physical motor wires, while the HW-134A also has
+So each motor has exactly 6 physical motor wires, while the L298N also has
 separate Arduino control wires listed in the previous table.
 
 Wire colors can vary by seller. If the motor PCB has labels, trust the labels
@@ -133,8 +129,8 @@ more than color. Common labels are `M+`, `M-`, `VCC`, `GND`, `A`, and `B`.
 ### Left GA25-370 Motor
 | Motor Wire / PCB Label | Common Color | Connect To |
 |---|---|---|
-| `M+` motor power | Red | HW-134A Motor A output 1 |
-| `M-` motor power | Black | HW-134A Motor A output 2 |
+| `M+` motor power | Red | L298N OUT1 |
+| `M-` motor power | Black | L298N OUT2 |
 | Encoder `VCC` | Yellow | Arduino 5V |
 | Encoder `GND` | White | Arduino GND |
 | Encoder `A` | Green | Arduino D2 / PD2 / INT0 |
@@ -143,15 +139,15 @@ more than color. Common labels are `M+`, `M-`, `VCC`, `GND`, `A`, and `B`.
 ### Right GA25-370 Motor
 | Motor Wire / PCB Label | Common Color | Connect To |
 |---|---|---|
-| `M+` motor power | Red | HW-134A Motor B output 1 |
-| `M-` motor power | Black | HW-134A Motor B output 2 |
+| `M+` motor power | Red | L298N OUT3 |
+| `M-` motor power | Black | L298N OUT4 |
 | Encoder `VCC` | Yellow | Arduino 5V |
 | Encoder `GND` | White | Arduino GND |
 | Encoder `A` | Green | Arduino D3 / PD3 / INT1 |
 | Encoder `B` | Blue | Arduino D10 / PB2 |
 
 If a motor spins backward during the forward test, swap only that motor's
-`M+` and `M-` wires on the HW-134A motor output. Do not swap encoder `VCC`
+`M+` and `M-` wires on the L298N motor output. Do not swap encoder `VCC`
 and `GND`.
 
 ### HC-05 Bluetooth

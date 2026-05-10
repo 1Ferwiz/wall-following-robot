@@ -13,12 +13,26 @@ static uint8_t clamp_speed(int speed) {
     return (uint8_t)speed;
 }
 
-void Motor_Init(void) {
-    MOTOR_L_PWM_DDR |= (1 << MOTOR_L_PWM_PIN);
-    MOTOR_R_PWM_DDR |= (1 << MOTOR_R_PWM_PIN);
+static void set_motor_direction(uint8_t in1_pin, uint8_t in2_pin, int speed) {
+    uint8_t mask = (uint8_t)((1 << in1_pin) | (1 << in2_pin));
 
-    MOTOR_DIR_DDR |= (1 << MOTOR_L_DIR_PIN) | (1 << MOTOR_R_DIR_PIN);
-    MOTOR_DIR_PORT &= (uint8_t)~((1 << MOTOR_L_DIR_PIN) | (1 << MOTOR_R_DIR_PIN));
+    if (speed > 0) {
+        MOTOR_IN_PORT = (uint8_t)((MOTOR_IN_PORT & (uint8_t)~mask) | (1 << in1_pin));
+    } else if (speed < 0) {
+        MOTOR_IN_PORT = (uint8_t)((MOTOR_IN_PORT & (uint8_t)~mask) | (1 << in2_pin));
+    } else {
+        MOTOR_IN_PORT &= (uint8_t)~mask;
+    }
+}
+
+void Motor_Init(void) {
+    MOTOR_L_EN_DDR |= (1 << MOTOR_L_EN_PIN);
+    MOTOR_R_EN_DDR |= (1 << MOTOR_R_EN_PIN);
+
+    MOTOR_IN_DDR |= (1 << MOTOR_L_IN1_PIN) | (1 << MOTOR_L_IN2_PIN) |
+                    (1 << MOTOR_R_IN1_PIN) | (1 << MOTOR_R_IN2_PIN);
+    MOTOR_IN_PORT &= (uint8_t)~((1 << MOTOR_L_IN1_PIN) | (1 << MOTOR_L_IN2_PIN) |
+                                (1 << MOTOR_R_IN1_PIN) | (1 << MOTOR_R_IN2_PIN));
 
     TCCR0A = (1 << COM0A1) | (1 << COM0B1) | (1 << WGM01) | (1 << WGM00);
     TCCR0B = (1 << CS01);
@@ -29,31 +43,15 @@ void Motor_Init(void) {
 static void set_left_speed(int speed) {
     uint8_t pwm = clamp_speed(speed);
 
-    if (speed > 0) {
-        MOTOR_DIR_PORT &= (uint8_t)~(1 << MOTOR_L_DIR_PIN);
-        OCR0B = pwm;
-    } else if (speed < 0) {
-        MOTOR_DIR_PORT |= (1 << MOTOR_L_DIR_PIN);
-        OCR0B = (uint8_t)(255u - pwm);
-    } else {
-        MOTOR_DIR_PORT &= (uint8_t)~(1 << MOTOR_L_DIR_PIN);
-        OCR0B = 0;
-    }
+    set_motor_direction(MOTOR_L_IN1_PIN, MOTOR_L_IN2_PIN, speed);
+    OCR0B = pwm;
 }
 
 static void set_right_speed(int speed) {
     uint8_t pwm = clamp_speed(speed);
 
-    if (speed > 0) {
-        MOTOR_DIR_PORT &= (uint8_t)~(1 << MOTOR_R_DIR_PIN);
-        OCR0A = pwm;
-    } else if (speed < 0) {
-        MOTOR_DIR_PORT |= (1 << MOTOR_R_DIR_PIN);
-        OCR0A = (uint8_t)(255u - pwm);
-    } else {
-        MOTOR_DIR_PORT &= (uint8_t)~(1 << MOTOR_R_DIR_PIN);
-        OCR0A = 0;
-    }
+    set_motor_direction(MOTOR_R_IN1_PIN, MOTOR_R_IN2_PIN, speed);
+    OCR0A = pwm;
 }
 
 void Motor_SetSpeed(int left, int right) {

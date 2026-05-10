@@ -35,19 +35,21 @@
 #define US_RIGHT_ECHO_PINREG    PINB
 #define US_RIGHT_ECHO_PIN       PB3        /* D11 */
 
-/* HW-134A / L9110S motor driver */
-#define MOTOR_L_PWM_DDR         DDRD
-#define MOTOR_L_PWM_PORT        PORTD
-#define MOTOR_L_PWM_PIN         PD5        /* D5 / OC0B -> A-IA */
+/* L298N dual H-bridge motor driver */
+#define MOTOR_L_EN_DDR          DDRD
+#define MOTOR_L_EN_PORT         PORTD
+#define MOTOR_L_EN_PIN          PD5        /* D5 / OC0B -> ENA */
 
-#define MOTOR_R_PWM_DDR         DDRD
-#define MOTOR_R_PWM_PORT        PORTD
-#define MOTOR_R_PWM_PIN         PD6        /* D6 / OC0A -> B-IA */
+#define MOTOR_R_EN_DDR          DDRD
+#define MOTOR_R_EN_PORT         PORTD
+#define MOTOR_R_EN_PIN          PD6        /* D6 / OC0A -> ENB */
 
-#define MOTOR_DIR_DDR           DDRC
-#define MOTOR_DIR_PORT          PORTC
-#define MOTOR_L_DIR_PIN         PC2        /* A2 -> A-IB */
-#define MOTOR_R_DIR_PIN         PC4        /* A4 -> B-IB */
+#define MOTOR_IN_DDR            DDRC
+#define MOTOR_IN_PORT           PORTC
+#define MOTOR_L_IN1_PIN         PC2        /* A2 -> IN1 */
+#define MOTOR_L_IN2_PIN         PC3        /* A3 -> IN2 */
+#define MOTOR_R_IN1_PIN         PC4        /* A4 -> IN3 */
+#define MOTOR_R_IN2_PIN         PC5        /* A5 -> IN4 */
 
 /* GA25-370 encoder inputs */
 #define ENC_A_DDR               DDRD
