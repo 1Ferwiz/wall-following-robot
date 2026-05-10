@@ -260,10 +260,11 @@ const char *FSM_GetTurnSequence(void);
 - Turning the D12 start switch OFF stops the motors and resets the run state.
 - Front ultrasonic detects turn entry.
 - Left/right ultrasonic readings classify whether the open turn is left or right.
-- Turn states stop using GA25 encoder ticks, with `MOTOR_TURN_DURATION_MS` as
-  a timed fallback.
-- If front, left, and right are all open after at least one logged turn, the FSM
-  treats that stable open area as the finish condition.
+- Turn states currently use `MOTOR_TURN_DURATION_MS` only. Encoder-based turn
+  stopping is disabled until the car is mechanically reliable.
+- Finish detection stops the car after at least one completed turn when front,
+  left, and right all stay open for `FSM_FINISH_OPEN_MS`. It is ignored for
+  `FSM_FINISH_ARM_MS` after each turn to avoid false stops at corners.
 - On complete, UART sends:
 ```text
 Turns: N

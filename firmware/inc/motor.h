@@ -14,15 +14,15 @@
  *   Right board: D6 / OC0A -> ENA, A4 -> IN1, A5 -> IN2
  */
 
-#define MOTOR_BASE_SPEED        160
-#define MOTOR_TURN_SPEED        140
-#define MOTOR_SLOW_SPEED         80
+#define MOTOR_BASE_SPEED        255
+#define MOTOR_TURN_SPEED        220
+#define MOTOR_SLOW_SPEED        200
 
 /*
- * Timed fallback for a 90 degree turn if encoder feedback is not valid.
- * Encoder completion is preferred in the FSM.
+ * Time-based turn duration. Keep encoder turn stopping disabled until the
+ * chassis wiring and encoder signals are proven stable.
  */
-#define MOTOR_TURN_DURATION_MS  550U
+#define MOTOR_TURN_DURATION_MS  450U
 
 void Motor_Init(void);
 void Motor_SetSpeed(int left, int right);

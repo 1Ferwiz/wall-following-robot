@@ -9,7 +9,8 @@
 #define FSM_FRONT_TURN_MM     180u
 #define FSM_OPEN_SIDE_MM      300u
 #define FSM_SETTLE_MS          80u
-#define FSM_FINISH_OPEN_MS    250u
+#define FSM_FINISH_OPEN_MS    700u
+#define FSM_FINISH_ARM_MS    1200u
 #define FSM_START_DELAY_MS    500u
 
 typedef enum {
